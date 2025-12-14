@@ -8,28 +8,51 @@ from rest_framework.views import APIView
 from .permissions import IsLeader,IsEmployee
 from rest_framework.permissions import IsAuthenticated
 from devicemanagement.utils import api_response
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
+from django.contrib.auth import authenticate
+from devicemanagement.utils import api_response
 
-class LoginUserView(TokenObtainPairView):
-    permission_classes = (permissions.AllowAny,)
 
-    def post(self,request,*args,**kwargs):
-        resp = super().post(request,*args,**kwargs)
+class LoginUserView(APIView):
+    permission_classes = [AllowAny]
 
-        if resp.status_code != 200:
+    def post(self, request):
+        username = request.data.get("username")
+        password = request.data.get("password")
+
+        if not username or not password:
             return api_response(
-                success= False,
-                status_message= "Invalid Username or Password",
-                data = None,
-                status_code= 401,
+                success=False,
+                message="Username and password are required",
+                data=None,
+                status=400
             )
-        
+
+        user = authenticate(username=username, password=password)
+
+        if user is None:
+            return api_response(
+                success=False,
+                message="Invalid credentials",
+                data=None,
+                status=401
+            )
+
+        refresh = RefreshToken.for_user(user)
+
         return api_response(
-            success= True,
-            status_message="Login successful",
-            data = {
-                "access_token" : resp.data.get("access"),
-                "refresh_token" : resp.data.get("refresh")
-            }
+            success=True,
+            message="Login successful",
+            data={
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh)
+            },
+            status=200
         )
 
 class RefreshTokenViewCustom(TokenRefreshView):
